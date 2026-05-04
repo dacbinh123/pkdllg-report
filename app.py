@@ -13,7 +13,7 @@ from google.analytics.data_v1beta.types import (
     FilterExpression,
     Filter,
 )
-
+from google_auth_oauthlib.flow import Flow 
 # =================================================================
 # CHỖ ĐIỀN URL - BẠN TỰ FILL VÀO ĐÂY
 # =================================================================
@@ -510,6 +510,8 @@ URL_MAP = build_url_mapping()
 
 # --- XỬ LÝ XÁC THỰC GOOGLE (DÙNG ST.SECRETS) ---
 def get_google_creds():
+    from google_auth_oauthlib.flow import Flow  # Thêm dòng này vào đây
+    
     client_config = {
         "web": {
             "client_id": st.secrets["google_oauth"]["client_id"],
@@ -524,6 +526,7 @@ def get_google_creds():
 
     flow = Flow.from_client_config(client_config, scopes=SCOPES)
     flow.redirect_uri = st.secrets["google_oauth"]["redirect_uri"]
+    # ... phần còn lại của code
 
     if 'creds' not in st.session_state:
         st.title("🚀 SEO Dashboard - LG Clinic")
