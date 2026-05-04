@@ -474,14 +474,25 @@ https://phongkhamdalieulg.vn/ba-bau-bi-viem-lo-chan-long/
 https://phongkhamdalieulg.vn/ba-bau-bi-viem-nang-long-vung-kin/
 https://phongkhamdalieulg.vn/viem-nang-long-sau-khi-wax/
 """
+def get_service_name(landing_page):
+    # Chuẩn hóa landing page: đảm bảo có domain để so sánh với list của bạn
+    full_url = "https://phongkhamdalieulg.vn" + landing_page if landing_page.startswith('/') else landing_page
+    
+    # Kiểm tra từng list bạn đã tạo (Giữ nguyên logic list URL của bạn)
+    if full_url in URL_TRI_MUN: return "Trị Mụn"
+    if full_url in URL_TRI_NAM: return "Trị Nám"
+    if full_url in URL_SEO_RO: return "Sẹo Rỗ"
+    if full_url in URL_SEO_LOI: return "Sẹo Lồi"
+    if full_url in URL_MUN_LUNG: return "Mụn Lưng"
+    if full_url in URL_VIEM_NANG_LONG: return "Viêm Nang Lông"
+    
+    return "Khác"
 
 # =================================================================
-# PHẦN XỬ LÝ LOGIC (KHÔNG CẦN SỬA DƯỚI NÀY)
+# PHẦN XỬ LÝ LOGIC (ĐÃ TỐI ƯU THEO YÊU CẦU)
 # =================================================================
 
-# =================================================================
 # 1. CẤU HÌNH HỆ THỐNG & KẾT NỐI
-# =================================================================
 SCOPES = [
     'https://www.googleapis.com/auth/webmasters.readonly', 
     'https://www.googleapis.com/auth/analytics.readonly'
@@ -495,26 +506,8 @@ def format_time(seconds):
     secs = int(seconds % 60)
     return f"{minutes} phút {secs} giây" if minutes > 0 else f"{secs} giây"
 
-def build_url_mapping():
-    mapping = {}
-    domain = "https://phongkhamdalieulg.vn"
-    # Bạn có thể định nghĩa các URL cụ thể tại đây hoặc lấy từ st.secrets
-    groups = {
-        "Trị Mụn": "/dich-vu/tri-mun",
-        "Trị Nám": "/dich-vu/tri-nam",
-        "Sẹo Rỗ": "/dich-vu/tri-seo-ro",
-        "Sẹo Lồi": "/dich-vu/tri-seo-loi",
-        "Viêm nang lông": "/dich-vu/viem-nang-long",
-        "Mụn lưng": "/dich-vu/tri-mun-lung"
-    }
-    return groups
-
-URL_MAP = build_url_mapping()
-
-# --- XỬ LÝ XÁC THỰC GOOGLE (DÙNG ST.SECRETS) ---
-# --- XỬ LÝ XÁC THỰC GOOGLE (DÙNG STREAMLIT-OAUTH) ---
+# --- XỬ LÝ XÁC THỰC GOOGLE ---
 def get_google_creds():
-    # 1. Cấu hình các tham số từ Secrets
     CLIENT_ID = st.secrets["google_oauth"]["client_id"]
     CLIENT_SECRET = st.secrets["google_oauth"]["client_secret"]
     REDIRECT_URI = st.secrets["google_oauth"]["redirect_uri"]
@@ -524,25 +517,20 @@ def get_google_creds():
     REFRESH_TOKEN_URL = "https://oauth2.googleapis.com/token"
     REVOKE_TOKEN_URL = "https://accounts.google.com/o/oauth2/revoke"
 
-    # 2. Khởi tạo component OAuth2
     oauth2 = OAuth2Component(CLIENT_ID, CLIENT_SECRET, AUTHORIZE_URL, TOKEN_URL, REFRESH_TOKEN_URL, REVOKE_TOKEN_URL)
 
     if 'creds' not in st.session_state:
-        # Hiển thị tiêu đề và nút đăng nhập cho sếp
         st.title("🚀 SEO Dashboard - LG Clinic")
         st.info("Vui lòng đăng nhập bằng tài khoản Google quản lý phongkhamdalieulg.vn")
         
-        # Nút này sẽ tự động mở tab mới và bắt lấy 'code' cho bạn
-# Thêm redirect_uri vào trực tiếp nếu cần và bỏ ux_mode nếu không tương thích
         result = oauth2.authorize_button(
             name="🔑 Đăng nhập bằng Google",
             scope=" ".join(SCOPES),
-            redirect_uri=REDIRECT_URI, # Đảm bảo tên tham số đúng là redirect_uri
-            key="google_auth", # Thêm key để tránh xung đột widget của Streamlit
+            redirect_uri=REDIRECT_URI,
+            key="google_auth",
         )
         
         if result and 'token' in result:
-            # Chuyển đổi token nhận được thành đối tượng Credentials của Google
             from google.oauth2.credentials import Credentials
             token_info = result['token']
             st.session_state.creds = Credentials(
@@ -603,7 +591,7 @@ if len(date_range) == 2 and st.sidebar.button("🚀 Chạy báo cáo"):
                 avg_duration = float(row.metric_values[3].value) / total_sessions if total_sessions > 0 else 0
                 
                 ga4_list.append({
-                    'Nhóm Dịch Vụ': "Dịch vụ LG Spa", # Bạn có thể map thêm logic phân nhóm tại đây
+                    'Nhóm Dịch Vụ': get_service_name(base_path), # Áp dụng hàm map URL của bạn
                     'Trang đích': full_path,
                     'Phiên hoạt động': total_sessions,
                     'Số phiên tương tác': int(row.metric_values[1].value),
@@ -612,21 +600,34 @@ if len(date_range) == 2 and st.sidebar.button("🚀 Chạy báo cáo"):
                 })
             st.session_state.df_ga4 = pd.DataFrame(ga4_list)
 
-            res_gsc = gsc_service.searchanalytics().query(siteUrl=site_url, body={
-                'startDate': s_str, 'endDate': e_str,
-                'dimensions': ['query', 'page'], 'rowLimit': 5000
-            }).execute()
+        # 2. TRUY XUẤT GSC & XỬ LÝ TRÙNG LẶP
+        res_gsc = gsc_service.searchanalytics().query(siteUrl=site_url, body={
+            'startDate': s_str, 'endDate': e_str,
+            'dimensions': ['query', 'page'], 'rowLimit': 5000
+        }).execute()
+        
+        if res_gsc.get('rows'):
+            df_raw = pd.DataFrame([{
+                'Từ khóa': r['keys'][0],
+                'Landing Page': r['keys'][1].replace(site_url, "/"),
+                'Lượt nhấp': r['clicks'],
+                'Lượt hiển thị': r['impressions'],
+                'Vị trí TB': r['position']
+            } for r in res_gsc['rows']])
+
+            # GOM NHÓM THEO TỪ KHÓA ĐỂ TRÁNH SAI SỐ
+            df_gsc_final = df_raw.groupby('Từ khóa').agg({
+                'Landing Page': 'first',
+                'Lượt nhấp': 'sum',
+                'Lượt hiển thị': 'sum',
+                'Vị trí TB': 'mean'
+            }).reset_index()
+
+            # Áp dụng hàm map URL để phân nhóm dịch vụ
+            df_gsc_final['Nhóm Dịch Vụ'] = df_gsc_final['Landing Page'].apply(get_service_name)
+            df_gsc_final['Vị trí TB'] = df_gsc_final['Vị trí TB'].round(1)
             
-            if res_gsc.get('rows'):
-                df_gsc_new = pd.DataFrame([{
-                    'Từ khóa': r['keys'][0],
-                    'Landing Page': r['keys'][1].replace(site_url, "/"),
-                    'Lượt nhấp': r['clicks'],
-                    'Lượt hiển thị': r['impressions'],
-                    'Vị trí TB': round(r['position'], 1)
-                } for r in res_gsc['rows']])
-                df_gsc_new['Nhóm Dịch Vụ'] = df_gsc_new['Landing Page'].apply(lambda x: URL_MAP.get(x, "Khác"))
-                st.session_state.df_gsc = df_gsc_new
+            st.session_state.df_gsc = df_gsc_final.sort_values(by='Lượt nhấp', ascending=False)
 
 # --- HIỂN THỊ DỮ LIỆU ---
 if 'df_gsc' in st.session_state and 'df_ga4' in st.session_state:
@@ -636,10 +637,13 @@ if 'df_gsc' in st.session_state and 'df_ga4' in st.session_state:
     st.header("📊 Phân tích Tổng quan")
     col1, col2 = st.columns(2)
     with col1:
+        # Lọc bỏ các từ khóa thuộc nhóm "Khác" nếu cần hoặc hiển thị top 10 lượt nhấp
         fig_gsc = px.pie(df_gsc.head(10), values='Lượt nhấp', names='Từ khóa', title="Top 10 Từ khóa (Lượt nhấp)")
         st.plotly_chart(fig_gsc, use_container_width=True)
     with col2:
-        fig_ga4 = px.pie(df_ga4.head(10), values='Phiên hoạt động', names='Trang đích', title="Top 10 Trang đích (Traffic)")
+        # Biểu đồ tỉ lệ traffic theo Nhóm Dịch Vụ từ GA4
+        df_pie_ga4 = df_ga4.groupby('Nhóm Dịch Vụ')['Phiên hoạt động'].sum().reset_index()
+        fig_ga4 = px.pie(df_pie_ga4, values='Phiên hoạt động', names='Nhóm Dịch Vụ', title="Tỷ lệ Traffic theo Nhóm Dịch Vụ")
         st.plotly_chart(fig_ga4, use_container_width=True)
 
     st.subheader("🔍 Chi tiết Search Console")
