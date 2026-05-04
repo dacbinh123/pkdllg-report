@@ -612,21 +612,37 @@ if len(date_range) == 2 and st.sidebar.button("🚀 Chạy báo cáo"):
                 })
             st.session_state.df_ga4 = pd.DataFrame(ga4_list)
 
-        # 2. TRUY XUẤT GSC
+# 2. TRUY XUẤT GSC - TỐI ƯU HÓA ĐỂ KHỚP SỐ LIỆU
         res_gsc = gsc_service.searchanalytics().query(siteUrl=site_url, body={
-            'startDate': s_str, 'endDate': e_str,
-            'dimensions': ['query', 'page'], 'rowLimit': 5000
+            'startDate': s_str, 
+            'endDate': e_str,
+            'dimensions': ['query', 'page'], # Giữ cả 2 để biết từ khóa đó vào trang nào
+            'rowLimit': 5000
         }).execute()
         
         if res_gsc.get('rows'):
-            df_gsc_new = pd.DataFrame([{
+            # Tạo DataFrame ban đầu
+            df_raw = pd.DataFrame([{
                 'Từ khóa': r['keys'][0],
                 'Landing Page': r['keys'][1].replace(site_url, "/"),
                 'Lượt nhấp': r['clicks'],
                 'Lượt hiển thị': r['impressions'],
-                'Vị trí TB': round(r['position'], 1)
+                'Vị trí TB': r['position']
             } for r in res_gsc['rows']])
-            st.session_state.df_gsc = df_gsc_new
+
+            # NHÓM LẠI THEO TỪ KHÓA ĐỂ ĐẢM BẢO TỔNG CLICK KHÔNG BỊ LỆCH
+            df_gsc_final = df_raw.groupby('Từ khóa').agg({
+                'Landing Page': 'first', # Lấy trang đích có lượt nhấp cao nhất (thường là trang chính)
+                'Lượt nhấp': 'sum',
+                'Lượt hiển thị': 'sum',
+                'Vị trí TB': 'mean'
+            }).reset_index()
+
+            # Sắp xếp lại theo lượt nhấp giảm dần
+            df_gsc_final = df_gsc_final.sort_values(by='Lượt nhấp', ascending=False)
+            df_gsc_final['Vị trí TB'] = df_gsc_final['Vị trí TB'].round(1)
+            
+            st.session_state.df_gsc = df_gsc_final
 
 # --- HIỂN THỊ DỮ LIỆU ---
 if 'df_gsc' in st.session_state and 'df_ga4' in st.session_state:
