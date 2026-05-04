@@ -533,11 +533,12 @@ def get_google_creds():
         st.info("Vui lòng đăng nhập bằng tài khoản Google quản lý phongkhamdalieulg.vn")
         
         # Nút này sẽ tự động mở tab mới và bắt lấy 'code' cho bạn
+# Thêm redirect_uri vào trực tiếp nếu cần và bỏ ux_mode nếu không tương thích
         result = oauth2.authorize_button(
             name="🔑 Đăng nhập bằng Google",
-            registered_redirect_uri=REDIRECT_URI,
             scope=" ".join(SCOPES),
-            ux_mode="redirect" # Hoặc "popup" tùy bạn muốn
+            redirect_uri=REDIRECT_URI, # Đảm bảo tên tham số đúng là redirect_uri
+            key="google_auth", # Thêm key để tránh xung đột widget của Streamlit
         )
         
         if result and 'token' in result:
