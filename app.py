@@ -474,11 +474,18 @@ https://phongkhamdalieulg.vn/ba-bau-bi-viem-lo-chan-long/
 https://phongkhamdalieulg.vn/ba-bau-bi-viem-nang-long-vung-kin/
 https://phongkhamdalieulg.vn/viem-nang-long-sau-khi-wax/
 """
+
 def get_service_name(landing_page):
-    # Chuẩn hóa landing page: đảm bảo có domain để so sánh với list của bạn
-    full_url = "https://phongkhamdalieulg.vn" + landing_page if landing_page.startswith('/') else landing_page
+    # 1. Chuẩn hóa đường dẫn
+    path = landing_page.strip()
+    full_url = "https://phongkhamdalieulg.vn" + path if path.startswith('/') else path
     
-    # Kiểm tra từng list bạn đã tạo (Giữ nguyên logic list URL của bạn)
+    # 2. ƯU TIÊN SỐ 1: Kiểm tra Trang Chủ trước
+    # Điều này ngăn việc "/" bị rơi vào nhóm "Trị Mụn" bên dưới
+    if path == "/" or path == "https://phongkhamdalieulg.vn/":
+        return "Trang Chủ"
+    
+    # 3. Kiểm tra các list dịch vụ (Giữ nguyên các biến list của bạn)
     if full_url in URL_TRI_MUN: return "Trị Mụn"
     if full_url in URL_TRI_NAM: return "Trị Nám"
     if full_url in URL_SEO_RO: return "Sẹo Rỗ"
