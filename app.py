@@ -634,20 +634,62 @@ if 'df_gsc' in st.session_state and 'df_ga4' in st.session_state:
     df_gsc = st.session_state.df_gsc
     df_ga4 = st.session_state.df_ga4
 
-    st.header("📊 Phân tích Tổng quan")
+    st.header("📊 BÁO CÁO HIỆU SUẤT TỔNG QUAN")
+
+    # 1. CÁC CHỈ SỐ KEY METRICS (Nên có cái này đầu tiên)
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Tổng Lượt Nhấp (GSC)", f"{df_gsc['Lượt nhấp'].sum():,}")
+    m2.metric("Tổng Hiển Thị (GSC)", f"{df_gsc['Lượt hiển thị'].sum():,}")
+    m3.metric("Tổng Sessions (GA4)", f"{df_ga4['Phiên hoạt động'].sum():,}")
+    m4.metric("CTR Trung Bình", f"{(df_gsc['Lượt nhấp'].sum()/df_gsc['Lượt hiển thị'].sum()*100):.2f}%")
+
+    st.markdown("---")
+
+    # 2. BIỂU ĐỒ SO SÁNH DỊCH VỤ
     col1, col2 = st.columns(2)
+    
     with col1:
-        # Lọc bỏ các từ khóa thuộc nhóm "Khác" nếu cần hoặc hiển thị top 10 lượt nhấp
-        fig_gsc = px.pie(df_gsc.head(10), values='Lượt nhấp', names='Từ khóa', title="Top 10 Từ khóa (Lượt nhấp)")
-        st.plotly_chart(fig_gsc, use_container_width=True)
+        # Biểu đồ so sánh Nhấp/Hiển thị theo Nhóm Dịch Vụ
+        df_service_gsc = df_gsc.groupby('Nhóm Dịch Vụ').agg({'Lượt nhấp': 'sum', 'Lượt hiển thị': 'sum'}).reset_index()
+        fig_service = px.bar(df_service_gsc, x='Nhóm Dịch Vụ', y='Lượt nhấp', 
+                             text_auto='.2s', title="Hiệu suất Lượt nhấp theo Dịch vụ",
+                             color='Lượt nhấp', color_continuous_scale='Blues')
+        st.plotly_chart(fig_service, use_container_width=True)
+
     with col2:
-        # Biểu đồ tỉ lệ traffic theo Nhóm Dịch Vụ từ GA4
+        # Tỉ lệ Traffic GA4
         df_pie_ga4 = df_ga4.groupby('Nhóm Dịch Vụ')['Phiên hoạt động'].sum().reset_index()
-        fig_ga4 = px.pie(df_pie_ga4, values='Phiên hoạt động', names='Nhóm Dịch Vụ', title="Tỷ lệ Traffic theo Nhóm Dịch Vụ")
-        st.plotly_chart(fig_ga4, use_container_width=True)
+        fig_ga4_pie = px.pie(df_pie_ga4, values='Phiên hoạt động', names='Nhóm Dịch Vụ', 
+                             title="Tỉ trọng Traffic giữa các Nhóm Dịch Vụ",
+                             hole=0.4, color_discrete_sequence=px.colors.sequential.RdBu)
+        st.plotly_chart(fig_ga4_pie, use_container_width=True)
 
-    st.subheader("🔍 Chi tiết Search Console")
-    st.dataframe(df_gsc, use_container_width=True, hide_index=True)
+    # 3. PHÂN TÍCH CHẤT LƯỢNG NỘI DUNG
+    st.subheader("🎯 Top 10 Trang có tương tác tốt nhất (Thời gian ở lại lâu)")
+    
+    # Xử lý format thời gian để vẽ biểu đồ (chuyển về giây)
+    def time_to_seconds(t_str):
+        if 'phút' in t_str:
+            parts = t_str.split(' phút ')
+            return int(parts[0]) * 60 + int(parts[1].replace(' giây', ''))
+        return int(t_str.replace(' giây', ''))
 
-    st.subheader("📈 Chi tiết GA4 Organic")
-    st.dataframe(df_ga4, use_container_width=True, hide_index=True)
+    df_ga4_plot = df_ga4.copy()
+    df_ga4_plot['Giây tương tác'] = df_ga4_plot['Thời gian tương tác TB'].apply(time_to_seconds)
+    df_top_content = df_ga4_plot.sort_values('Giây tương tác', ascending=False).head(10)
+
+    fig_content = px.bar(df_top_content, x='Giây tương tác', y='Trang đích', 
+                         orientation='h', color='Nhóm Dịch Vụ',
+                         title="Nội dung giữ chân khách hàng lâu nhất (Giây)",
+                         labels={'Giây tương tác': 'Giây', 'Trang đích': 'URL'})
+    fig_content.update_layout(yaxis={'categoryorder':'total ascending'}) # Sắp xếp cột cao nhất lên đầu
+    st.plotly_chart(fig_content, use_container_width=True)
+
+    # 4. BẢNG CHI TIẾT
+    st.markdown("---")
+    t1, t2 = st.tabs(["🔍 Chi tiết Từ khóa (GSC)", "📈 Chi tiết Trang đích (GA4)"])
+    
+    with t1:
+        st.dataframe(df_gsc, use_container_width=True, hide_index=True)
+    with t2:
+        st.dataframe(df_ga4, use_container_width=True, hide_index=True)
