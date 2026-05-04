@@ -14,6 +14,9 @@ from google.analytics.data_v1beta.types import (
     Filter,
 )
 from google_auth_oauthlib.flow import Flow 
+import streamlit as st
+from streamlit_oauth import OAuth2Component
+import os
 # =================================================================
 # CHỖ ĐIỀN URL - BẠN TỰ FILL VÀO ĐÂY
 # =================================================================
@@ -509,41 +512,47 @@ def build_url_mapping():
 URL_MAP = build_url_mapping()
 
 # --- XỬ LÝ XÁC THỰC GOOGLE (DÙNG ST.SECRETS) ---
+# --- XỬ LÝ XÁC THỰC GOOGLE (DÙNG STREAMLIT-OAUTH) ---
 def get_google_creds():
-    from google_auth_oauthlib.flow import Flow  # Thêm dòng này vào đây
+    # 1. Cấu hình các tham số từ Secrets
+    CLIENT_ID = st.secrets["google_oauth"]["client_id"]
+    CLIENT_SECRET = st.secrets["google_oauth"]["client_secret"]
+    REDIRECT_URI = st.secrets["google_oauth"]["redirect_uri"]
     
-    client_config = {
-        "web": {
-            "client_id": st.secrets["google_oauth"]["client_id"],
-            "project_id": st.secrets["google_oauth"]["project_id"],
-            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-            "token_uri": "https://oauth2.googleapis.com/token",
-            "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-            "client_secret": st.secrets["google_oauth"]["client_secret"],
-            "redirect_uris": [st.secrets["google_oauth"]["redirect_uri"]]
-        }
-    }
+    AUTHORIZE_URL = "https://accounts.google.com/o/oauth2/auth"
+    TOKEN_URL = "https://oauth2.googleapis.com/token"
+    REFRESH_TOKEN_URL = "https://oauth2.googleapis.com/token"
+    REVOKE_TOKEN_URL = "https://accounts.google.com/o/oauth2/revoke"
 
-    flow = Flow.from_client_config(client_config, scopes=SCOPES)
-    flow.redirect_uri = st.secrets["google_oauth"]["redirect_uri"]
-    # ... phần còn lại của code
+    # 2. Khởi tạo component OAuth2
+    oauth2 = OAuth2Component(CLIENT_ID, CLIENT_SECRET, AUTHORIZE_URL, TOKEN_URL, REFRESH_TOKEN_URL, REVOKE_TOKEN_URL)
 
     if 'creds' not in st.session_state:
+        # Hiển thị tiêu đề và nút đăng nhập cho sếp
         st.title("🚀 SEO Dashboard - LG Clinic")
-        auth_url, _ = flow.authorization_url(prompt='consent', access_type='offline')
+        st.info("Vui lòng đăng nhập bằng tài khoản Google quản lý phongkhamdalieulg.vn")
         
-        st.info("Ứng dụng cần quyền truy cập vào dữ liệu Google Search Console và GA4.")
-        st.link_button("🔑 Đăng nhập bằng Google", auth_url)
+        # Nút này sẽ tự động mở tab mới và bắt lấy 'code' cho bạn
+        result = oauth2.authorize_button(
+            name="🔑 Đăng nhập bằng Google",
+            registered_redirect_uri=REDIRECT_URI,
+            scope=" ".join(SCOPES),
+            ux_mode="redirect" # Hoặc "popup" tùy bạn muốn
+        )
         
-        # Nhận mã code từ URL sau khi đăng nhập thành công
-        auth_code = st.text_input("Dán mã xác thực (Authorization Code) nhận được sau khi đăng nhập vào đây:")
-        if auth_code:
-            try:
-                flow.fetch_token(code=auth_code)
-                st.session_state.creds = flow.credentials
-                st.rerun()
-            except Exception as e:
-                st.error(f"Lỗi xác thực: {e}")
+        if result and 'token' in result:
+            # Chuyển đổi token nhận được thành đối tượng Credentials của Google
+            from google.oauth2.credentials import Credentials
+            token_info = result['token']
+            st.session_state.creds = Credentials(
+                token=token_info.get('access_token'),
+                refresh_token=token_info.get('refresh_token'),
+                token_uri=TOKEN_URL,
+                client_id=CLIENT_ID,
+                client_secret=CLIENT_SECRET,
+                scopes=SCOPES
+            )
+            st.rerun()
         st.stop()
     
     return st.session_state.creds
