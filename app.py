@@ -692,11 +692,43 @@ if 'df_gsc' in st.session_state and 'df_ga4' in st.session_state:
     fig_content.update_layout(yaxis={'categoryorder':'total ascending'}) # Sắp xếp cột cao nhất lên đầu
     st.plotly_chart(fig_content, use_container_width=True)
 
-    # 4. BẢNG CHI TIẾT
+# 4. BẢNG CHI TIẾT
     st.markdown("---")
     t1, t2 = st.tabs(["🔍 Chi tiết Từ khóa (GSC)", "📈 Chi tiết Trang đích (GA4)"])
     
     with t1:
-        st.dataframe(df_gsc, use_container_width=True, hide_index=True)
+        # Ép kiểu dữ liệu số để Sort chuẩn (không bị lỗi 1, 10, 2)
+        df_gsc['Lượt nhấp'] = pd.to_numeric(df_gsc['Lượt nhấp'], errors='coerce')
+        df_gsc['Lượt hiển thị'] = pd.to_numeric(df_gsc['Lượt hiển thị'], errors='coerce')
+        df_gsc['Vị trí TB'] = pd.to_numeric(df_gsc['Vị trí TB'], errors='coerce')
+        
+        # Sắp xếp mặc định theo lượt nhấp cao nhất
+        df_gsc = df_gsc.sort_values(by='Lượt nhấp', ascending=False)
+        
+        st.dataframe(
+            df_gsc, 
+            use_container_width=True, 
+            hide_index=True,
+            column_config={
+                "Lượt nhấp": st.column_config.NumberColumn(format="%d"),
+                "Lượt hiển thị": st.column_config.NumberColumn(format="%d"),
+                "Vị trí TB": st.column_config.NumberColumn(format="%.1f"),
+            }
+        )
+
     with t2:
-        st.dataframe(df_ga4, use_container_width=True, hide_index=True)
+        # Ép kiểu dữ liệu số cho GA4
+        df_ga4['Phiên hoạt động'] = pd.to_numeric(df_ga4['Phiên hoạt động'], errors='coerce')
+        
+        # Sắp xếp mặc định theo phiên cao nhất
+        df_ga4 = df_ga4.sort_values(by='Phiên hoạt động', ascending=False)
+
+        st.dataframe(
+            df_ga4, 
+            use_container_width=True, 
+            hide_index=True,
+            column_config={
+                "Phiên hoạt động": st.column_config.NumberColumn(format="%d"),
+                "Số phiên tương tác": st.column_config.NumberColumn(format="%d"),
+            }
+        )
